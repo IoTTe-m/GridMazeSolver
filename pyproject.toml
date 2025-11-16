@@ -1,0 +1,11 @@
+[project]
+name = "GridMazeSolver"
+version = "0.1.0"
+description = "It solves grids"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deap>=1.4.3",
+    "matplotlib>=3.10.7",
+    "numpy>=2.3.4",
+]
