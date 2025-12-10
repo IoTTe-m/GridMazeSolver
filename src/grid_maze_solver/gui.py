@@ -76,6 +76,7 @@ class SolverGUI:
         self.var_n_states = self.create_input(left_frame, "N States:", "8")
         self.var_stack_syms = self.create_input(left_frame, "Stack Syms:", "4")
         self.var_seed = self.create_input(left_frame, "Seed (Optional):", "")
+        self.var_jobs = self.create_input(left_frame, "Parallel Jobs:", "1")
 
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         
@@ -136,7 +137,9 @@ class SolverGUI:
                 "max_steps": int(self.var_max_steps.get()),
                 "n_states": int(self.var_n_states.get()),
                 "n_stack_syms": int(self.var_stack_syms.get()),
-                "seed": int(self.var_seed.get()) if self.var_seed.get().strip() else None
+                "n_stack_syms": int(self.var_stack_syms.get()),
+                "seed": int(self.var_seed.get()) if self.var_seed.get().strip() else None,
+                "jobs": int(self.var_jobs.get())
             }
         except ValueError as e:
             messagebox.showerror("Invalid Input", f"Please check your inputs: {e}")
@@ -209,16 +212,21 @@ class SolverGUI:
             if params["algo"] == "ga":
                 run_ga_conditional_pda(
                     maze, n_states=params["n_states"], n_stack_syms=params["n_stack_syms"],
-                    pop_size=params["pop"], gens=params["gens"], seed=params["seed"],
-                    ind_max_steps=params["max_steps"], dynamic_maze=params["dynamic_maze"],
-                    step_callback=step_callback
+                    pop_size=params["pop"], gens=params["gens"], 
+                    seed=params["seed"], ind_max_steps=params["max_steps"],
+                    dynamic_maze=params["dynamic_maze"],
+                    step_callback=step_callback,
+                    n_jobs=params.get("jobs", 1)
                 )
             else:
                 run_es_conditional_pda(
                     maze, n_states=params["n_states"], n_stack_syms=params["n_stack_syms"],
-                    mu=params["pop"], lam=params["pop"]*2, gens=params["gens"], seed=params["seed"],
-                    ind_max_steps=params["max_steps"], dynamic_maze=params["dynamic_maze"],
-                    step_callback=step_callback
+                    mu=params["pop"], lam=params["pop"]*2, 
+                    gens=params["gens"], seed=params["seed"], 
+                    ind_max_steps=params["max_steps"],
+                    dynamic_maze=params["dynamic_maze"],
+                    step_callback=step_callback,
+                    n_jobs=params.get("jobs", 1)
                 )
                 
             self.queue.put(("done", None))

@@ -21,6 +21,7 @@ def parse_args():
     p.add_argument("--gui", action="store_true", help="Launch the GUI interface")
     p.add_argument("--remove_walls", type=int, default=0, help="Remove this many random interior walls after maze generation")
     p.add_argument("--out", type=str, default="best_path.png", help="Output filename for best path image")
+    p.add_argument("--jobs", type=int, default=1, help="Number of parallel jobs (default: 1, use -1 for all cores)")
     return p.parse_args()
 
 def main() -> None:
@@ -44,15 +45,15 @@ def main() -> None:
     maze.set_start_goal(start=(1, 1), goal=(args.height - 2, args.width - 2))
 
     print(f"Maze size: {args.width}x{args.height}. Start={maze.start} Goal={maze.goal}")
-    print(f"Conditional PDA config: n_states={args.n_states} stack_symbols={args.n_stack_syms} max_steps={args.max_steps} remove_walls={args.remove_walls} dynamic_maze={args.dynamic_maze}")
+    print(f"Conditional PDA config: n_states={args.n_states} stack_symbols={args.n_stack_syms} max_steps={args.max_steps} remove_walls={args.remove_walls} dynamic_maze={args.dynamic_maze} jobs={args.jobs}")
 
     if args.algo == "ga":
         best, best_score, best_out, log = run_ga_conditional_pda(
-            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, pop_size=args.pop, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze
+            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, pop_size=args.pop, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze, n_jobs=args.jobs
         )
     else:
         best, best_score, best_out, log = run_es_conditional_pda(
-            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, mu=args.pop, lam=args.pop * 2, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze
+            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, mu=args.pop, lam=args.pop * 2, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze, n_jobs=args.jobs
         )
 
     print("\n=== BEST SOLUTION ===")

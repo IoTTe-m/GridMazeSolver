@@ -16,7 +16,7 @@ class Evaluator:
         score = 0.0
 
         if out["reached"]:
-            score += 1_000_000.0
+            score += 100_000.0
             score += (self.max_steps - out["steps"]) * 10.0
             score -= out["collisions"] * 20.0
             score -= out["stack_underflow"] * 50.0
