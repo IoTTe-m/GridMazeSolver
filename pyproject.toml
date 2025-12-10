@@ -9,3 +9,15 @@ dependencies = [
     "matplotlib>=3.10.7",
     "numpy>=2.3.4",
 ]
+
+[project.scripts]
+grid-maze-solver = "grid_maze_solver.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/grid_maze_solver"]
+
+
