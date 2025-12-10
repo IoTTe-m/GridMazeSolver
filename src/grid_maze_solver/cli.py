@@ -1,10 +1,6 @@
 import argparse
 import sys
-# matplotlib optional
-try:
-    import matplotlib.pyplot as plt
-except Exception:
-    plt = None
+import matplotlib.pyplot as plt
 
 from .maze import Maze
 from .ga import run_ga_conditional_pda, run_es_conditional_pda
@@ -21,12 +17,22 @@ def parse_args():
     p.add_argument("--pop", type=int, default=200, help="Population size (GA) or mu (ES)")
     p.add_argument("--gens", type=int, default=200, help="Generations / iterations to run")
     p.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
+    p.add_argument("--dynamic-maze", action="store_true", help="Regenerate maze every generation")
+    p.add_argument("--gui", action="store_true", help="Launch the GUI interface")
     p.add_argument("--remove_walls", type=int, default=0, help="Remove this many random interior walls after maze generation")
     p.add_argument("--out", type=str, default="best_path.png", help="Output filename for best path image")
     return p.parse_args()
 
 def main() -> None:
     args = parse_args()
+
+    if args.gui:
+        import tkinter as tk
+        from .gui import SolverGUI
+        root = tk.Tk()
+        app = SolverGUI(root)
+        root.mainloop()
+        return
 
     # ensure odd sizes
     if args.width % 2 == 0:
@@ -38,15 +44,15 @@ def main() -> None:
     maze.set_start_goal(start=(1, 1), goal=(args.height - 2, args.width - 2))
 
     print(f"Maze size: {args.width}x{args.height}. Start={maze.start} Goal={maze.goal}")
-    print(f"Conditional PDA config: n_states={args.n_states} stack_symbols={args.n_stack_syms} max_steps={args.max_steps} remove_walls={args.remove_walls}")
+    print(f"Conditional PDA config: n_states={args.n_states} stack_symbols={args.n_stack_syms} max_steps={args.max_steps} remove_walls={args.remove_walls} dynamic_maze={args.dynamic_maze}")
 
     if args.algo == "ga":
         best, best_score, best_out, log = run_ga_conditional_pda(
-            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, pop_size=args.pop, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps
+            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, pop_size=args.pop, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze
         )
     else:
         best, best_score, best_out, log = run_es_conditional_pda(
-            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, mu=args.pop, lam=args.pop * 2, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps
+            maze, n_states=args.n_states, n_stack_syms=args.n_stack_syms, mu=args.pop, lam=args.pop * 2, gens=args.gens, seed=args.seed, ind_max_steps=args.max_steps, dynamic_maze=args.dynamic_maze
         )
 
     print("\n=== BEST SOLUTION ===")

@@ -2,11 +2,7 @@ from typing import List, Tuple, Optional, Sequence
 import random
 import numpy as np
 
-# matplotlib optional for rendering
-try:
-    import matplotlib.pyplot as plt
-except Exception:
-    plt = None  # render disabled if matplotlib missing
+import matplotlib.pyplot as plt
 
 # Directions (0=N,1=E,2=S,3=W) and their vectors (row, col)
 DIRECTION_VECTORS: List[Tuple[int, int]] = [(-1, 0), (0, 1), (1, 0), (0, -1)]
@@ -28,9 +24,25 @@ class Maze:
         self.grid: np.ndarray = np.ones((height, width), dtype=np.int8)
         self.start: Tuple[int, int] = (1, 1)
         self.goal: Tuple[int, int] = (height - 2, width - 2)
+        self.remove_walls_count = remove_walls
         self._generate()
         if remove_walls > 0:
             self._remove_random_walls(remove_walls)
+
+    def regenerate(self, seed: Optional[int] = None) -> None:
+        """Regenerate the maze structure with a new seed (or random if None)."""
+        self.seed = seed
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+        # Reset grid
+        self.grid[:] = 1
+        # Regenerate
+        self._generate()
+        # Remove walls if needed (stored param?)
+        # We need to store remove_walls param in __init__ to reuse it
+        if hasattr(self, 'remove_walls_count') and self.remove_walls_count > 0:
+            self._remove_random_walls(self.remove_walls_count)
 
     def _generate(self) -> None:
         H, W = self.height, self.width
@@ -57,12 +69,15 @@ class Maze:
         """Remove up to k random interior walls (not borders, not start/goal).
         Selects from cells currently equal to 1 (walls) and flips them to 0."""
         # candidate walls exclude border cells and start/goal
-        candidates: List[Tuple[int, int]] = [
-            (i, j)
-            for i in range(2, self.height - 2, 2)
-            for j in range(2, self.width - 2, 2)
-            if self.grid[i, j] == 1 and (i, j) != self.start and (i, j) != self.goal
-        ]
+        candidates: List[Tuple[int, int]] = []
+        for i in range(1, self.height - 1):
+            for j in range(1, self.width - 1):
+                # We want to remove walls between cells, which are at (even, odd) or (odd, even)
+                # Pillars are at (even, even), Cells are at (odd, odd)
+                # So we want sum of coordinates to be odd.
+                if (i + j) % 2 == 1 and self.grid[i, j] == 1:
+                     if (i, j) != self.start and (i, j) != self.goal:
+                        candidates.append((i, j))
         if not candidates:
             return
         k = min(k, len(candidates))
