@@ -1,18 +1,16 @@
 import copy
 import queue
 import sys
+import numpy as np
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Any, Dict, List, Optional
-
+from typing import List
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from .ga import run_es_conditional_pda, run_ga_conditional_pda
 from .maze import Maze
-from .simulator import Simulator
 
 
 class SolverGUI:

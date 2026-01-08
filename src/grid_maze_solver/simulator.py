@@ -1,4 +1,4 @@
-from typing import List, Tuple, Sequence, Dict, Any
+from typing import Tuple, Sequence, Dict, Any
 
 import numpy as np
 from numba import njit

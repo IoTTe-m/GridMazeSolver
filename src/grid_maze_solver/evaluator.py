@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Any, Sequence, List, Optional
+from typing import Tuple, Dict, Any, Sequence, List
 import numpy as np
 
 from .maze import Maze

@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from typing import Optional, List, Sequence, Tuple, Dict, Any
+from typing import Optional, List, Tuple, Dict, Any
 
 from deap import base, creator, tools, algorithms
 
