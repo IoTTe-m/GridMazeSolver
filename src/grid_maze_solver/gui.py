@@ -1,26 +1,28 @@
+import copy
+import queue
+import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-import threading
-import queue
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from typing import Dict, Any, Optional
-import numpy as np
+from typing import Any, Dict, List, Optional
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from .ga import run_es_conditional_pda, run_ga_conditional_pda
 from .maze import Maze
-from .ga import run_ga_conditional_pda, run_es_conditional_pda
 from .simulator import Simulator
-from .evaluator import Evaluator
-from .genome import genome_to_conditional_pda_string
+
 
 class SolverGUI:
-    def __init__(self, root):
+    def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Grid Maze Solver GUI")
         self.root.geometry("1400x900")
 
         self.running = False
-        self.closing = False # Flag to prevent callbacks after close
+        self.closing = False
         self._after_id = None
         self.stop_event = threading.Event()
         self.queue = queue.Queue()
@@ -34,24 +36,20 @@ class SolverGUI:
         self.check_queue()
 
     def setup_ui(self):
-        # Layout: Left panel (controls), Right panel (Graphs + Maze)
-        # Using simple Frames side-by-side instead of PanedWindow to avoid geometry issues
         main_container = ttk.Frame(self.root)
         main_container.pack(fill=tk.BOTH, expand=True)
 
         left_frame = ttk.Frame(main_container, width=300)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
-        
+
         right_frame = ttk.Frame(main_container, width=900)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # --- Sub-frames for Right Panel ---
         self.fig, (self.ax_fitness, self.ax_maze) = plt.subplots(2, 1, figsize=(8, 10))
         self.canvas = FigureCanvasTkAgg(self.fig, master=right_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill=tk.BOTH, expand=True)
 
-        # --- Controls (Left Panel) ---
         ttk.Label(left_frame, text="Maze Settings", font=("Arial", 12, "bold")).pack(anchor="w", pady=5)
         
         self.var_width = self.create_input(left_frame, "Width:", "21")
@@ -60,6 +58,8 @@ class SolverGUI:
         
         self.var_dynamic = tk.BooleanVar(value=False)
         ttk.Checkbutton(left_frame, text="Dynamic Maze (Generalization)", variable=self.var_dynamic).pack(anchor="w", pady=5)
+        
+        self.var_eval_mazes = self.create_input(left_frame, "Eval Mazes:", "1")
 
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         ttk.Label(left_frame, text="Evolution Settings", font=("Arial", 12, "bold")).pack(anchor="w", pady=5)
@@ -90,7 +90,6 @@ class SolverGUI:
         ttk.Label(left_frame, textvariable=self.status_var, relief=tk.SUNKEN).pack(fill=tk.X, pady=10)
 
     def setup_plots(self):
-        # Initialize plots with empty data
         self.ax_fitness.set_title("Fitness over Generations")
         self.ax_fitness.set_xlabel("Generation")
         self.ax_fitness.set_ylabel("Fitness")
@@ -102,7 +101,6 @@ class SolverGUI:
         
         self.ax_maze.set_xticks([])
         self.ax_maze.set_yticks([])
-        # We will create the imshow object later when we have the maze
         self.img_maze = None
         self.line_path, = self.ax_maze.plot([], [], linewidth=2, color="blue", alpha=0.7)
         self.scat_start = None
@@ -131,12 +129,12 @@ class SolverGUI:
                 "height": height,
                 "remove_walls": int(self.var_remove_walls.get()),
                 "dynamic_maze": self.var_dynamic.get(),
+                "eval_mazes": int(self.var_eval_mazes.get()),
                 "algo": self.var_algo.get(),
                 "pop": int(self.var_pop.get()),
                 "gens": int(self.var_gens.get()),
                 "max_steps": int(self.var_max_steps.get()),
                 "n_states": int(self.var_n_states.get()),
-                "n_stack_syms": int(self.var_stack_syms.get()),
                 "n_stack_syms": int(self.var_stack_syms.get()),
                 "seed": int(self.var_seed.get()) if self.var_seed.get().strip() else None,
                 "jobs": int(self.var_jobs.get())
@@ -155,29 +153,19 @@ class SolverGUI:
         self.stats_history = {"avg": [], "min": [], "max": []}
         self.generations = []
         
-        # Clear/Reset lines
         self.line_max.set_data([], [])
         self.line_avg.set_data([], [])
         self.line_max_smooth.set_data([], [])
         self.line_avg_smooth.set_data([], [])
         self.ax_fitness.relim()
         self.ax_fitness.autoscale_view()
-        
+
         self.line_path.set_data([], [])
         if self.img_maze:
-            self.img_maze.set_data(np.zeros((params["height"], params["width"]))) # Placeholder
-            # Force redraw of maze grid if maze size changes? 
-            # imshow extent depends on data shape. set_data works if shape is same or compatible?
-            # Actually imshow wraps an AxesImage.
-            # If dimensions change, set_data might handle it but extent needs update?
-            # Easiest is to clear ax_maze if dims change.
-            # For now assuming user sets dims once. If they change, we might need full clear.
-            # Let's simple clear ax_maze on run if we want to be safe, but we wanted to optimize.
-            # Let's keep optimization but assume same size or handle resize.
-            pass
+            self.img_maze.set_data(np.zeros((params["height"], params["width"])))
 
         self.canvas.draw()
-        
+
         threading.Thread(target=self.run_solver_thread, args=(params,), daemon=True).start()
 
     def on_stop(self):
@@ -197,36 +185,44 @@ class SolverGUI:
             # Initial maze render
             self.queue.put(("maze_update", (maze, [])))
 
-            def step_callback(gen, record, best_ind):
+            def step_callback(generation, stats_record, best_individual, display_maze):
                 if self.stop_event.is_set():
                     raise InterruptedError("Stopped by user")
-                    
-                import copy
-                # Deepcopy maze to avoid race condition with the background thread
-                # regenerating the maze while the GUI is rendering it.
-                maze_copy = copy.deepcopy(maze)
-                
-                self.queue.put(("stats", (gen, record)))
-                self.queue.put(("best_ind", (maze_copy, best_ind, params)))
+
+                # Use the maze passed from GA/ES (could be evaluation maze in dynamic mode)
+                maze_copy = copy.deepcopy(display_maze)
+
+                self.queue.put(("stats", (generation, stats_record)))
+                self.queue.put(("best_ind", (maze_copy, best_individual, params)))
 
             if params["algo"] == "ga":
                 run_ga_conditional_pda(
-                    maze, n_states=params["n_states"], n_stack_syms=params["n_stack_syms"],
-                    pop_size=params["pop"], gens=params["gens"], 
-                    seed=params["seed"], ind_max_steps=params["max_steps"],
+                    maze,
+                    num_states=params["n_states"],
+                    num_stack_symbols=params["n_stack_syms"],
+                    population_size=params["pop"],
+                    generations=params["gens"],
+                    seed=params["seed"],
+                    max_steps_per_individual=params["max_steps"],
                     dynamic_maze=params["dynamic_maze"],
+                    num_eval_mazes=params["eval_mazes"],
                     step_callback=step_callback,
-                    n_jobs=params.get("jobs", 1)
+                    num_parallel_jobs=params.get("jobs", 1)
                 )
             else:
                 run_es_conditional_pda(
-                    maze, n_states=params["n_states"], n_stack_syms=params["n_stack_syms"],
-                    mu=params["pop"], lam=params["pop"]*2, 
-                    gens=params["gens"], seed=params["seed"], 
-                    ind_max_steps=params["max_steps"],
+                    maze,
+                    num_states=params["n_states"],
+                    num_stack_symbols=params["n_stack_syms"],
+                    parent_population_size=params["pop"],
+                    offspring_size=params["pop"] * 2,
+                    generations=params["gens"],
+                    seed=params["seed"],
+                    max_steps_per_individual=params["max_steps"],
                     dynamic_maze=params["dynamic_maze"],
+                    num_eval_mazes=params["eval_mazes"],
                     step_callback=step_callback,
-                    n_jobs=params.get("jobs", 1)
+                    num_parallel_jobs=params.get("jobs", 1)
                 )
                 
             self.queue.put(("done", None))
@@ -244,28 +240,28 @@ class SolverGUI:
 
         try:
             while True:
-                msg, data = self.queue.get_nowait()
-                if msg == "stats":
-                    gen, record = data
-                    self.generations.append(gen)
-                    self.stats_history["avg"].append(record["avg"])
-                    self.stats_history["min"].append(record["min"])
-                    self.stats_history["max"].append(record["max"])
+                message_type, data = self.queue.get_nowait()
+                if message_type == "stats":
+                    generation, stats_record = data
+                    self.generations.append(generation)
+                    self.stats_history["avg"].append(stats_record["avg"])
+                    self.stats_history["min"].append(stats_record["min"])
+                    self.stats_history["max"].append(stats_record["max"])
                     self.update_fitness_graph()
-                elif msg == "best_ind":
-                    maze_obj, best_ind, params = data
-                    self.render_maze_with_best(maze_obj, best_ind, params)
-                elif msg == "maze_update":
+                elif message_type == "best_ind":
+                    maze_obj, best_individual, params = data
+                    self.render_maze_with_best(maze_obj, best_individual, params)
+                elif message_type == "maze_update":
                     maze_obj, path = data
-                    self.render_maze(maze_obj, path) 
-                elif msg == "status":
+                    self.render_maze(maze_obj, path)
+                elif message_type == "status":
                     self.status_var.set(data)
-                elif msg == "done":
+                elif message_type == "done":
                     self.status_var.set("Completed.")
-                elif msg == "error":
+                elif message_type == "error":
                     messagebox.showerror("Error", data)
                     self.status_var.set("Error occurred.")
-                elif msg == "cleanup":
+                elif message_type == "cleanup":
                     self.running = False
                     self.btn_run.config(state=tk.NORMAL)
                     self.btn_stop.config(state=tk.DISABLED)
@@ -273,69 +269,68 @@ class SolverGUI:
             pass
         finally:
             if not self.closing:
-                # 100ms is standard, but for faster updates we can go lower (e.g. 50ms)
-                # But GUI might lag if thread floods queue. 100ms is safe.
                 self._after_id = self.root.after(100, self.check_queue)
 
-    def update_fitness_graph(self):
-        # Update data instead of clearing
+    def update_fitness_graph(self) -> None:
         self.line_max.set_data(self.generations, self.stats_history["max"])
         self.line_avg.set_data(self.generations, self.stats_history["avg"])
-        
-        # Calculate smoothing
-        def smooth(data, alpha=0.1):
-            if not data: return []
-            s = [data[0]]
-            for x in data[1:]:
-                s.append(alpha * x + (1 - alpha) * s[-1])
-            return s
-            
-        smooth_max = smooth(self.stats_history["max"])
-        smooth_avg = smooth(self.stats_history["avg"])
-        
-        self.line_max_smooth.set_data(self.generations, smooth_max)
-        self.line_avg_smooth.set_data(self.generations, smooth_avg)
+
+        def smooth(data: List[float], alpha: float = 0.1) -> List[float]:
+            if not data:
+                return []
+            smoothed = [data[0]]
+            for value in data[1:]:
+                smoothed.append(alpha * value + (1 - alpha) * smoothed[-1])
+            return smoothed
+
+        smoothed_max = smooth(self.stats_history["max"])
+        smoothed_avg = smooth(self.stats_history["avg"])
+
+        self.line_max_smooth.set_data(self.generations, smoothed_max)
+        self.line_avg_smooth.set_data(self.generations, smoothed_avg)
         
         self.ax_fitness.relim()
         self.ax_fitness.autoscale_view()
         self.canvas.draw_idle()  
 
-    def render_maze_with_best(self, maze_obj, best_ind, params):
+    def render_maze_with_best(self, maze_obj, best_individual, params):
         from .simulator import Simulator
-        sim = Simulator(maze_obj, max_steps=params["max_steps"], n_states=params["n_states"], n_stack_syms=params["n_stack_syms"])
-        out = sim.run_genome(best_ind)
-        self.render_maze(maze_obj, out["path"])
+        simulator = Simulator(
+            maze_obj,
+            max_steps=params["max_steps"],
+            num_states=params["n_states"],
+            num_stack_symbols=params["n_stack_syms"]
+        )
+        result = simulator.run_genome(best_individual)
+        self.render_maze(maze_obj, result["path"])
 
     def render_maze(self, maze_obj, path):
-        # Update image data
         if self.img_maze is None:
              self.img_maze = self.ax_maze.imshow(maze_obj.grid, cmap="gray_r", interpolation="nearest")
              self.scat_start = self.ax_maze.scatter([maze_obj.start[1]], [maze_obj.start[0]], c="green", label="Start", s=100)
              self.scat_goal = self.ax_maze.scatter([maze_obj.goal[1]], [maze_obj.goal[0]], c="red", label="Goal", s=100)
         else:
              self.img_maze.set_data(maze_obj.grid)
-             # Update extent and limits for new dimensions
              h, w = maze_obj.grid.shape
              self.img_maze.set_extent((-0.5, w-0.5, h-0.5, -0.5))
              self.ax_maze.set_xlim(-0.5, w-0.5)
              self.ax_maze.set_ylim(h-0.5, -0.5)
-             
-             # Update scatter (optional, if start/goal change)
+
              if self.scat_start:
                  self.scat_start.set_offsets(np.c_[[maze_obj.start[1]], [maze_obj.start[0]]])
              if self.scat_goal:
                  self.scat_goal.set_offsets(np.c_[[maze_obj.goal[1]], [maze_obj.goal[0]]])
 
         if path:
-            xs = [p[1] for p in path]
-            ys = [p[0] for p in path]
-            self.line_path.set_data(xs, ys)
+            x_coords = [position[1] for position in path]
+            y_coords = [position[0] for position in path]
+            self.line_path.set_data(x_coords, y_coords)
         else:
             self.line_path.set_data([], [])
             
         self.canvas.draw_idle()
 
-    def on_close(self):
+    def on_close(self) -> None:
         self.closing = True
         if self._after_id:
             try:
@@ -344,5 +339,5 @@ class SolverGUI:
                 pass
         self.on_stop()
         self.root.destroy()
-        plt.close('all') # Close all matplotlib figures
-        import sys; sys.exit(0) # Forcefully kill the process
+        plt.close('all')
+        sys.exit(0)
