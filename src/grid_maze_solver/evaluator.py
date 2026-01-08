@@ -55,13 +55,11 @@ class Evaluator:
 
     def score(self, genome: Sequence[int]) -> Tuple[float, Dict[str, Any]]:
         """Score genome, averaging over multiple mazes if configured."""
-        # Score on primary maze
         primary_score, primary_result = self._score_single(genome, self.maze, self.simulator)
         
         if not self._extra_mazes:
             return primary_score, primary_result
         
-        # Score on extra mazes and average
         total_score = primary_score
         for extra_maze in self._extra_mazes:
             extra_simulator = Simulator(extra_maze, max_steps=self.max_steps,
@@ -70,4 +68,4 @@ class Evaluator:
             total_score += extra_score
         
         avg_score = total_score / (1 + len(self._extra_mazes))
-        return avg_score, primary_result  # Return primary result for visualization
+        return avg_score, primary_result

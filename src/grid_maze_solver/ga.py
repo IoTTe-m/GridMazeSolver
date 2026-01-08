@@ -171,7 +171,7 @@ def run_ga_conditional_pda(
                 for ind in population:
                     del ind.fitness.values
 
-            # Elitism: preserve best individuals (but they need re-evaluation if maze changed)
+            # Elitism: preserve best individuals, they need re-evaluation if maze changed
             elite = tools.selBest(population, elitism_count) if not dynamic_maze else []
             elite = list(map(toolbox.clone, elite))
 

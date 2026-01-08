@@ -1,6 +1,9 @@
 import argparse
 import matplotlib.pyplot as plt
 
+import tkinter as tk
+
+from .gui import SolverGUI
 from .maze import Maze
 from .ga import run_ga_conditional_pda, run_es_conditional_pda
 from .genome import genome_to_conditional_pda_string
@@ -29,10 +32,8 @@ def main() -> None:
     args = parse_args()
 
     if args.gui:
-        import tkinter as tk
-        from .gui import SolverGUI
         root = tk.Tk()
-        app = SolverGUI(root)
+        _ = SolverGUI(root)
         root.mainloop()
         return
 
