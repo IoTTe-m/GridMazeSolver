@@ -11,6 +11,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from .ga import run_es_conditional_pda, run_ga_conditional_pda
 from .maze import Maze
+from .simulator import Simulator
 
 
 class SolverGUI:
@@ -292,7 +293,6 @@ class SolverGUI:
         self.canvas.draw_idle()  
 
     def render_maze_with_best(self, maze_obj, best_individual, params):
-        from .simulator import Simulator
         simulator = Simulator(
             maze_obj,
             max_steps=params["max_steps"],

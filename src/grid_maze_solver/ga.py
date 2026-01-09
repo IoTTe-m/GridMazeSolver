@@ -289,7 +289,6 @@ def run_es_conditional_pda(
             fitness_values = list(toolbox.map(toolbox.evaluate, individuals_to_evaluate))
             for individual, fitness in zip(individuals_to_evaluate, fitness_values):
                 individual.fitness.values = fitness
-                individual.fitness.values = fitness
 
             offspring = algorithms.varOr(population, toolbox, lambda_=offspring_size, cxpb=crossover_probability, mutpb=mutation_probability)
 
