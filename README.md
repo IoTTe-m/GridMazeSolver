@@ -13,3 +13,6 @@ Data representation:
 - The entrance to the maze will always be located in the top left corner, and the exit will be in the bottom right corner.
 - To allow for multiple solutions (some more and some less optimal) we will remove a specified percentage of the walls randomly.
 - We will represent chromosomes of the agents as a set of numbers that will encode an automaton. We have decided that simple representations would make it too hard for the agents to make big breakthroughs in their pathfinding and they will generalize very poorly.
+  
+<img width="1487" height="814" alt="Screenshot 2026-01-09 at 10 18 01" src="https://github.com/user-attachments/assets/e1a4129a-09bf-49ff-a35d-05d2f59bd647" />
+
